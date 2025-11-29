@@ -36,7 +36,7 @@ function getJapanDate(): string {
 export default function PublicPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
-  const EMPLOYEES_PER_PAGE = 20; // 5×4 = 20人
+  const EMPLOYEES_PER_PAGE = 24; // 6×4 = 24人
   const PAGE_INTERVAL = 5000; // 5秒ごとにページ切り替え
 
   useEffect(() => {
@@ -72,10 +72,10 @@ export default function PublicPage() {
   const endIndex = startIndex + EMPLOYEES_PER_PAGE;
   const displayEmployees = employees.slice(startIndex, endIndex);
   
-  // 5×4のグリッドで表示
+  // 6×4のグリッドで表示
   const rows = [];
-  for (let i = 0; i < EMPLOYEES_PER_PAGE; i += 5) {
-    rows.push(displayEmployees.slice(i, i + 5));
+  for (let i = 0; i < EMPLOYEES_PER_PAGE; i += 6) {
+    rows.push(displayEmployees.slice(i, i + 6));
   }
 
   // ページ数を計算
@@ -93,10 +93,10 @@ export default function PublicPage() {
           )}
         </div>
 
-        {/* 5×4グリッド */}
+        {/* 6×4グリッド */}
         <div className="space-y-2">
           {rows.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-5 gap-2">
+            <div key={rowIndex} className="grid grid-cols-6 gap-2">
               {row.map((employee) => {
                 const bgColor = employee.attendance_status === '休み'
                   ? '#000000'
@@ -107,19 +107,22 @@ export default function PublicPage() {
                 return (
                   <div
                     key={employee.employee_id}
-                    className="aspect-square rounded-lg shadow-lg p-2 flex flex-col items-center justify-center"
-                    style={{ backgroundColor: bgColor }}
+                    className="rounded-lg shadow-lg p-2 flex flex-col items-center justify-center"
+                    style={{ 
+                      backgroundColor: bgColor,
+                      aspectRatio: '1 / 0.6'
+                    }}
                   >
                     {/* 名前ボックス（白いボックス） */}
-                    <div className="bg-white px-4 py-2 rounded-md shadow-md mb-4">
-                      <div className="text-base font-bold text-gray-800 whitespace-nowrap">
+                    <div className="bg-white px-2 py-1 rounded-md shadow-md mb-1">
+                      <div className="text-sm font-bold text-gray-800 whitespace-nowrap">
                         {employee.name}
                       </div>
                     </div>
                     
                     {/* 配置場所（大きく表示） */}
                     <div 
-                      className="text-lg font-bold text-center"
+                      className="text-base font-bold text-center"
                       style={{ color: textColor }}
                     >
                       {employee.attendance_status === '休み'
@@ -130,11 +133,12 @@ export default function PublicPage() {
                 );
               })}
               {/* 空のセルを埋める */}
-              {row.length < 5 &&
-                Array.from({ length: 5 - row.length }).map((_, i) => (
+              {row.length < 6 &&
+                Array.from({ length: 6 - row.length }).map((_, i) => (
                   <div
                     key={`empty-${rowIndex}-${i}`}
-                    className="aspect-square rounded-lg bg-gray-200"
+                    className="rounded-lg bg-gray-200"
+                    style={{ aspectRatio: '1 / 0.6' }}
                   />
                 ))}
             </div>
