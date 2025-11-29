@@ -114,8 +114,8 @@ export default function PublicPage() {
                     }}
                   >
                     {/* 名前ボックス（白いボックス） */}
-                    <div className="bg-white px-2 py-1 rounded-md shadow-md mb-1">
-                      <div className="text-sm font-bold text-gray-800 whitespace-nowrap">
+                    <div className="bg-white px-4 py-2 rounded-md shadow-md mb-1">
+                      <div className="text-2lg font-bold text-gray-800 whitespace-nowrap">
                         {employee.name}
                       </div>
                     </div>
