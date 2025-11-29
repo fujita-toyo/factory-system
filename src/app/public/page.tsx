@@ -25,48 +25,78 @@ function getTextColor(bgColor: string | null): string {
   return brightness > 128 ? '#000000' : '#FFFFFF';
 }
 
+// 日本時間の今日の日付を取得
+function getJapanDate(): string {
+  const now = new Date();
+  // UTC時間に9時間（日本時間）を追加
+  const japanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  return japanTime.toISOString().split('T')[0];
+}
+
 export default function PublicPage() {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const EMPLOYEES_PER_PAGE = 20; // 5×4 = 20人
+  const PAGE_INTERVAL = 5000; // 5秒ごとにページ切り替え
 
   useEffect(() => {
-    if (date) {
-      fetchPublicData();
-    }
-  }, [date]);
+    fetchPublicData();
+    // 30秒ごとにデータを再取得
+    const dataInterval = setInterval(fetchPublicData, 30000);
+    return () => clearInterval(dataInterval);
+  }, []);
+
+  useEffect(() => {
+    // ページ数を計算
+    const totalPages = Math.ceil(employees.length / EMPLOYEES_PER_PAGE);
+    
+    if (totalPages <= 1) return; // 1ページ以下なら切り替え不要
+
+    // ページ自動切り替え
+    const pageInterval = setInterval(() => {
+      setCurrentPage((prev) => (prev + 1) % totalPages);
+    }, PAGE_INTERVAL);
+
+    return () => clearInterval(pageInterval);
+  }, [employees]);
 
   const fetchPublicData = async () => {
+    const date = getJapanDate();
     const res = await fetch(`/api/public?date=${date}`);
     const data = await res.json();
     setEmployees(data);
   };
 
-  // 5×5のグリッドで表示（最大25人）
-  const displayEmployees = employees.slice(0, 25);
+  // 現在のページの従業員を取得
+  const startIndex = currentPage * EMPLOYEES_PER_PAGE;
+  const endIndex = startIndex + EMPLOYEES_PER_PAGE;
+  const displayEmployees = employees.slice(startIndex, endIndex);
+  
+  // 5×4のグリッドで表示
   const rows = [];
-  for (let i = 0; i < 25; i += 5) {
+  for (let i = 0; i < EMPLOYEES_PER_PAGE; i += 5) {
     rows.push(displayEmployees.slice(i, i + 5));
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-6">配置一覧</h1>
+  // ページ数を計算
+  const totalPages = Math.ceil(employees.length / EMPLOYEES_PER_PAGE);
 
-        {/* 日付選択 */}
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6 text-center">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="px-4 py-2 border rounded-md text-lg"
-          />
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold">配置一覧</h1>
+          {totalPages > 1 && (
+            <div className="text-2xl font-semibold text-gray-700">
+              {currentPage + 1} / {totalPages}
+            </div>
+          )}
         </div>
 
-        {/* 5×5グリッド */}
-        <div className="space-y-4">
+        {/* 5×4グリッド */}
+        <div className="space-y-3">
           {rows.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-5 gap-4">
+            <div key={rowIndex} className="grid grid-cols-5 gap-3">
               {row.map((employee) => {
                 const bgColor = employee.attendance_status === '休み'
                   ? '#000000'
@@ -81,8 +111,8 @@ export default function PublicPage() {
                     style={{ backgroundColor: bgColor }}
                   >
                     {/* 名前ボックス（白いボックス） */}
-                    <div className="bg-white px-8 py-4 rounded-md shadow-md mb-4">
-                      <div className="text-2xl font-bold text-gray-800 whitespace-nowrap">
+                    <div className="bg-white px-6 py-3 rounded-md shadow-md mb-4">
+                      <div className="text-xl font-bold text-gray-800 whitespace-nowrap">
                         {employee.name}
                       </div>
                     </div>
@@ -110,6 +140,22 @@ export default function PublicPage() {
             </div>
           ))}
         </div>
+
+        {/* ページインジケーター（ドット） */}
+        {totalPages > 1 && (
+          <div className="flex justify-center gap-2 mt-6">
+            {Array.from({ length: totalPages }).map((_, index) => (
+              <div
+                key={index}
+                className={`w-3 h-3 rounded-full transition-all ${
+                  index === currentPage
+                    ? 'bg-blue-500 w-8'
+                    : 'bg-gray-300'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ export default function WorkplacesPage() {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3B82F6');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   
   // 編集用
   const [editingWorkplace, setEditingWorkplace] = useState<Workplace | null>(null);
@@ -142,9 +143,18 @@ export default function WorkplacesPage() {
     fetchWorkplaces();
   };
 
-  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) {
+      setCsvFile(file);
+    }
+  };
+
+  const handleCSVImport = () => {
+    if (!csvFile) {
+      alert('CSVファイルを選択してください');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -163,8 +173,12 @@ export default function WorkplacesPage() {
       }
 
       fetchWorkplaces();
+      setCsvFile(null);
+      // ファイル選択をリセット
+      const fileInput = document.getElementById('csv-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
     };
-    reader.readAsText(file);
+    reader.readAsText(csvFile, 'UTF-8');
   };
 
   if (status === 'loading') {
@@ -242,12 +256,31 @@ export default function WorkplacesPage() {
         {/* CSV取り込み */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-4">CSV取り込み</h2>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleCSVImport}
-            className="border rounded-md p-2"
-          />
+          <div className="flex items-center gap-4">
+            <input
+              id="csv-input"
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="border rounded-md p-2"
+            />
+            <button
+              onClick={handleCSVImport}
+              disabled={!csvFile}
+              className={`px-6 py-2 rounded-md font-semibold ${
+                csvFile
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              取り込む
+            </button>
+          </div>
+          {csvFile && (
+            <p className="text-sm text-green-600 mt-2">
+              選択中: {csvFile.name}
+            </p>
+          )}
           <p className="text-sm text-gray-600 mt-2">形式: 番号,作業場名称</p>
         </div>
 

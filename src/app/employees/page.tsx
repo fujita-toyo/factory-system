@@ -20,6 +20,7 @@ export default function EmployeesPage() {
   const [employeeNumber, setEmployeeNumber] = useState('');
   const [name, setName] = useState('');
   const [position, setPosition] = useState('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -60,6 +61,21 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`${name}さんを削除しますか？\n※出勤記録や配置情報も全て削除されます`)) return;
+
+    const res = await fetch(`/api/employees?id=${id}`, {
+      method: 'DELETE',
+    });
+
+    if (res.ok) {
+      fetchEmployees();
+    } else {
+      const data = await res.json();
+      alert(data.error || '削除に失敗しました');
+    }
+  };
+
   const handleStatusChange = async (employee: Employee, field: 'employment_status' | 'display_status', value: string) => {
     await fetch('/api/employees', {
       method: 'PUT',
@@ -69,9 +85,18 @@ export default function EmployeesPage() {
     fetchEmployees();
   };
 
-  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) {
+      setCsvFile(file);
+    }
+  };
+
+  const handleCSVImport = () => {
+    if (!csvFile) {
+      alert('CSVファイルを選択してください');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -90,8 +115,12 @@ export default function EmployeesPage() {
       }
 
       fetchEmployees();
+      setCsvFile(null);
+      // ファイル選択をリセット
+      const fileInput = document.getElementById('csv-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
     };
-    reader.readAsText(file);
+    reader.readAsText(csvFile, 'UTF-8');
   };
 
   if (status === 'loading') {
@@ -138,12 +167,31 @@ export default function EmployeesPage() {
 
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-4">CSV取り込み</h2>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleCSVImport}
-            className="border rounded-md p-2"
-          />
+          <div className="flex items-center gap-4">
+            <input
+              id="csv-input"
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="border rounded-md p-2"
+            />
+            <button
+              onClick={handleCSVImport}
+              disabled={!csvFile}
+              className={`px-6 py-2 rounded-md font-semibold ${
+                csvFile
+                  ? 'bg-green-500 text-white hover:bg-green-600'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              取り込む
+            </button>
+          </div>
+          {csvFile && (
+            <p className="text-sm text-green-600 mt-2">
+              選択中: {csvFile.name}
+            </p>
+          )}
           <p className="text-sm text-gray-600 mt-2">形式: 社員番号,氏名,役職</p>
         </div>
 
@@ -169,6 +217,12 @@ export default function EmployeesPage() {
                     className={`px-4 py-1 rounded-md ${employee.display_status === '表示' ? 'bg-blue-500' : 'bg-gray-500'} text-white`}
                   >
                     {employee.display_status}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(employee.id, employee.name)}
+                    className="bg-red-500 text-white px-4 py-1 rounded-md hover:bg-red-600"
+                  >
+                    削除
                   </button>
                 </div>
               </div>
