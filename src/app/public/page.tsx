@@ -94,9 +94,9 @@ export default function PublicPage() {
         </div>
 
         {/* 5×4グリッド */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {rows.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-5 gap-3">
+            <div key={rowIndex} className="grid grid-cols-5 gap-2">
               {row.map((employee) => {
                 const bgColor = employee.attendance_status === '休み'
                   ? '#000000'
@@ -107,19 +107,19 @@ export default function PublicPage() {
                 return (
                   <div
                     key={employee.employee_id}
-                    className="aspect-square rounded-lg shadow-lg p-4 flex flex-col items-center justify-center"
+                    className="aspect-square rounded-lg shadow-lg p-2 flex flex-col items-center justify-center"
                     style={{ backgroundColor: bgColor }}
                   >
                     {/* 名前ボックス（白いボックス） */}
-                    <div className="bg-white px-6 py-3 rounded-md shadow-md mb-4">
-                      <div className="text-xl font-bold text-gray-800 whitespace-nowrap">
+                    <div className="bg-white px-4 py-2 rounded-md shadow-md mb-4">
+                      <div className="text-base font-bold text-gray-800 whitespace-nowrap">
                         {employee.name}
                       </div>
                     </div>
                     
                     {/* 配置場所（大きく表示） */}
                     <div 
-                      className="text-2xl font-bold text-center"
+                      className="text-lg font-bold text-center"
                       style={{ color: textColor }}
                     >
                       {employee.attendance_status === '休み'
