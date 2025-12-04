@@ -12,6 +12,13 @@ interface Employee {
   workplace_color: string | null;
 }
 
+interface Workplace {
+  id: number;
+  number: number;
+  name: string;
+  color: string;
+}
+
 interface LayoutCell {
   row: number;
   col: number;
@@ -52,10 +59,12 @@ function getJapanDate(): string {
 export default function PublicPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [layout, setLayout] = useState<DisplayLayout | null>(null);
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
 
   useEffect(() => {
     fetchActiveLayout();
     fetchPublicData();
+    fetchWorkplaces();
     
     const dataInterval = setInterval(fetchPublicData, 30000);
     return () => clearInterval(dataInterval);
@@ -89,6 +98,16 @@ export default function PublicPage() {
     setEmployees(data);
   };
 
+  const fetchWorkplaces = async () => {
+    try {
+      const res = await fetch('/api/workplaces');
+      const data = await res.json();
+      setWorkplaces(data);
+    } catch (error) {
+      console.error('Error fetching workplaces:', error);
+    }
+  };
+
   if (!layout) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -100,6 +119,11 @@ export default function PublicPage() {
   // 各作業場の従業員を取得
   const getWorkplaceEmployees = (workplace_id: number) => {
     return employees.filter(emp => emp.workplace_id === workplace_id);
+  };
+
+  // 作業場情報を取得
+  const getWorkplace = (workplace_id: number) => {
+    return workplaces.find(w => w.id === workplace_id);
   };
 
   // セルが描画の開始位置かチェック
@@ -152,7 +176,8 @@ export default function PublicPage() {
               }
 
               const cellEmployees = getWorkplaceEmployees(cell.workplace_id);
-              const bgColor = cellEmployees[0]?.workplace_color || '#DC2626';
+              const workplace = getWorkplace(cell.workplace_id);
+              const bgColor = workplace?.color || '#DC2626';
               const textColor = getTextColor(bgColor);
               
               return (
@@ -175,7 +200,7 @@ export default function PublicPage() {
                       fontSize: cell.rowspan > 2 ? '1.5rem' : '1.25rem'
                     }}
                   >
-                    {cellEmployees[0]?.workplace_name || '未配置'}
+                    {workplace?.name || '未配置'}
                   </div>
 
                   {/* 従業員リスト */}
