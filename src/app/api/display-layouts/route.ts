@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
-// レイアウト一覧取得
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -21,7 +20,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// レイアウト作成
 export async function POST(req: NextRequest) {
   try {
     const { layout_name, grid_rows, grid_cols, layout_config } = await req.json();
@@ -38,12 +36,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// レイアウト更新
 export async function PUT(req: NextRequest) {
   try {
     const { id, layout_name, grid_rows, grid_cols, layout_config, is_active } = await req.json();
 
-    // is_activeをtrueにする場合、他のレイアウトを全てfalseにする
     if (is_active) {
       await pool.query('UPDATE display_layouts SET is_active = false');
     }
@@ -60,7 +56,6 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// レイアウト削除
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

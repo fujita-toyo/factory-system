@@ -14,6 +14,8 @@ interface Workplace {
 interface LayoutCell {
   row: number;
   col: number;
+  rowspan: number;
+  colspan: number;
   workplace_id: number | null;
 }
 
@@ -35,12 +37,14 @@ export default function DisplayLayoutPage() {
   const [layouts, setLayouts] = useState<DisplayLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<DisplayLayout>({
     layout_name: '新規レイアウト',
-    grid_rows: 6,
+    grid_rows: 12,
     grid_cols: 2,
     layout_config: { cells: [] }
   });
   const [selectedWorkplace, setSelectedWorkplace] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [selectionStart, setSelectionStart] = useState<{row: number, col: number} | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{row: number, col: number} | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -67,28 +71,91 @@ export default function DisplayLayoutPage() {
     setLayouts(data);
   };
 
-  const handleCellClick = (row: number, col: number) => {
-    if (!selectedWorkplace) return;
+  // セルが範囲選択に含まれているかチェック
+  const isInSelection = (row: number, col: number): boolean => {
+    if (!selectionStart || !selectionEnd) return false;
+    const minRow = Math.min(selectionStart.row, selectionEnd.row);
+    const maxRow = Math.max(selectionStart.row, selectionEnd.row);
+    const minCol = Math.min(selectionStart.col, selectionEnd.col);
+    const maxCol = Math.max(selectionStart.col, selectionEnd.col);
+    return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol;
+  };
 
-    const newCells = [...currentLayout.layout_config.cells];
-    const existingIndex = newCells.findIndex(c => c.row === row && c.col === col);
-
-    if (existingIndex >= 0) {
-      newCells[existingIndex].workplace_id = selectedWorkplace;
-    } else {
-      newCells.push({ row, col, workplace_id: selectedWorkplace });
-    }
-
-    setCurrentLayout({
-      ...currentLayout,
-      layout_config: { cells: newCells }
+  // セルがすでに配置されているかチェック
+  const isCellOccupied = (row: number, col: number): boolean => {
+    return currentLayout.layout_config.cells.some(cell => {
+      return row >= cell.row && row < cell.row + cell.rowspan &&
+             col >= cell.col && col < cell.col + cell.colspan;
     });
   };
 
+  // セルの範囲選択開始
+  const handleMouseDown = (row: number, col: number) => {
+    if (!selectedWorkplace) return;
+    if (isCellOccupied(row, col)) return;
+    setSelectionStart({ row, col });
+    setSelectionEnd({ row, col });
+  };
+
+  // セルの範囲選択中
+  const handleMouseEnter = (row: number, col: number) => {
+    if (!selectionStart || !selectedWorkplace) return;
+    setSelectionEnd({ row, col });
+  };
+
+  // セルの範囲選択終了
+  const handleMouseUp = () => {
+    if (!selectionStart || !selectionEnd || !selectedWorkplace) return;
+
+    const minRow = Math.min(selectionStart.row, selectionEnd.row);
+    const maxRow = Math.max(selectionStart.row, selectionEnd.row);
+    const minCol = Math.min(selectionStart.col, selectionEnd.col);
+    const maxCol = Math.max(selectionStart.col, selectionEnd.col);
+
+    // 選択範囲内に既に配置されているセルがあるかチェック
+    let hasOccupied = false;
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        if (isCellOccupied(r, c)) {
+          hasOccupied = true;
+          break;
+        }
+      }
+      if (hasOccupied) break;
+    }
+
+    if (hasOccupied) {
+      alert('選択範囲内に既に配置されているセルがあります');
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      return;
+    }
+
+    const newCell: LayoutCell = {
+      row: minRow,
+      col: minCol,
+      rowspan: maxRow - minRow + 1,
+      colspan: maxCol - minCol + 1,
+      workplace_id: selectedWorkplace
+    };
+
+    setCurrentLayout({
+      ...currentLayout,
+      layout_config: {
+        cells: [...currentLayout.layout_config.cells, newCell]
+      }
+    });
+
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
+  // セルの削除
   const handleCellClear = (row: number, col: number) => {
-    const newCells = currentLayout.layout_config.cells.filter(
-      c => !(c.row === row && c.col === col)
-    );
+    const newCells = currentLayout.layout_config.cells.filter(cell => {
+      return !(row >= cell.row && row < cell.row + cell.rowspan &&
+               col >= cell.col && col < cell.col + cell.colspan);
+    });
     setCurrentLayout({
       ...currentLayout,
       layout_config: { cells: newCells }
@@ -155,17 +222,25 @@ export default function DisplayLayoutPage() {
   const resetForm = () => {
     setCurrentLayout({
       layout_name: '新規レイアウト',
-      grid_rows: 6,
+      grid_rows: 12,
       grid_cols: 2,
       layout_config: { cells: [] }
     });
     setEditingId(null);
   };
 
-  const getCellWorkplace = (row: number, col: number) => {
-    const cell = currentLayout.layout_config.cells.find(c => c.row === row && c.col === col);
-    if (!cell || !cell.workplace_id) return null;
-    return workplaces.find(w => w.id === cell.workplace_id);
+  // 指定位置のセル情報を取得
+  const getCellAtPosition = (row: number, col: number): LayoutCell | null => {
+    return currentLayout.layout_config.cells.find(cell => {
+      return row >= cell.row && row < cell.row + cell.rowspan &&
+             col >= cell.col && col < cell.col + cell.colspan;
+    }) || null;
+  };
+
+  // セルが描画の開始位置かチェック
+  const isCellStart = (row: number, col: number): boolean => {
+    const cell = getCellAtPosition(row, col);
+    return cell !== null && cell.row === row && cell.col === col;
   };
 
   if (status === 'loading') {
@@ -207,7 +282,7 @@ export default function DisplayLayoutPage() {
                   <input
                     type="number"
                     min="1"
-                    max="12"
+                    max="20"
                     value={currentLayout.grid_rows}
                     onChange={(e) => setCurrentLayout({ ...currentLayout, grid_rows: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border rounded"
@@ -229,31 +304,56 @@ export default function DisplayLayoutPage() {
               {/* グリッド表示 */}
               <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50">
                 <p className="text-sm text-gray-600 mb-3">
-                  作業場を選択してから、セルをクリックして配置してください
+                  💡 作業場を選択 → ドラッグで範囲選択 → 離すと配置 / 右クリックで削除
                 </p>
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${currentLayout.grid_cols}, 1fr)` }}>
+                <div 
+                  className="grid gap-1 select-none" 
+                  style={{ gridTemplateColumns: `repeat(${currentLayout.grid_cols}, 1fr)` }}
+                  onMouseLeave={() => {
+                    setSelectionStart(null);
+                    setSelectionEnd(null);
+                  }}
+                >
                   {Array.from({ length: currentLayout.grid_rows }).map((_, row) =>
                     Array.from({ length: currentLayout.grid_cols }).map((_, col) => {
-                      const workplace = getCellWorkplace(row, col);
+                      const cell = getCellAtPosition(row, col);
+                      const isStart = isCellStart(row, col);
+                      const inSelection = isInSelection(row, col);
+
+                      // すでに配置されているセルで、開始位置でない場合はスキップ
+                      if (cell && !isStart) {
+                        return null;
+                      }
+
+                      const workplace = cell?.workplace_id 
+                        ? workplaces.find(w => w.id === cell.workplace_id)
+                        : null;
+
                       return (
                         <div
                           key={`${row}-${col}`}
-                          onClick={() => handleCellClick(row, col)}
+                          onMouseDown={() => handleMouseDown(row, col)}
+                          onMouseEnter={() => handleMouseEnter(row, col)}
+                          onMouseUp={handleMouseUp}
                           onContextMenu={(e) => {
                             e.preventDefault();
                             handleCellClear(row, col);
                           }}
-                          className="relative h-24 border-2 rounded cursor-pointer hover:border-blue-400 transition-all"
+                          className="relative border-2 rounded cursor-pointer hover:border-blue-400 transition-all"
                           style={{
-                            backgroundColor: workplace?.color || '#e5e7eb',
-                            borderColor: selectedWorkplace && !workplace ? '#3b82f6' : '#d1d5db'
+                            gridRow: cell ? `span ${cell.rowspan}` : undefined,
+                            gridColumn: cell ? `span ${cell.colspan}` : undefined,
+                            backgroundColor: workplace?.color || (inSelection ? '#bfdbfe' : '#e5e7eb'),
+                            borderColor: inSelection ? '#3b82f6' : '#d1d5db',
+                            minHeight: '60px'
                           }}
                         >
                           {workplace && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-sm font-bold text-center px-2" style={{
-                                color: getTextColor(workplace.color)
-                              }}>
+                            <div className="absolute inset-0 flex items-center justify-center p-2">
+                              <span 
+                                className="text-base font-bold text-center break-words"
+                                style={{ color: getTextColor(workplace.color) }}
+                              >
                                 {workplace.name}
                               </span>
                             </div>
@@ -263,7 +363,9 @@ export default function DisplayLayoutPage() {
                     })
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">※右クリックでセルをクリア</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  ※ドラッグで範囲選択してセルを結合 / 右クリックで削除
+                </p>
               </div>
 
               <div className="flex gap-2 mt-4">
