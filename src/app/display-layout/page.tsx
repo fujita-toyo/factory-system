@@ -293,7 +293,7 @@ export default function DisplayLayoutPage() {
                   <input
                     type="number"
                     min="1"
-                    max="4"
+                    max="10"
                     value={currentLayout.grid_cols}
                     onChange={(e) => setCurrentLayout({ ...currentLayout, grid_cols: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border rounded"
