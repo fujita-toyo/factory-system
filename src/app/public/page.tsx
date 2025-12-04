@@ -7,11 +7,27 @@ interface Employee {
   employee_number: string;
   name: string;
   attendance_status: string;
+  workplace_id: number | null;
   workplace_name: string | null;
   workplace_color: string | null;
 }
 
-// 色の明るさを計算する関数
+interface LayoutCell {
+  row: number;
+  col: number;
+  workplace_id: number | null;
+}
+
+interface DisplayLayout {
+  id: number;
+  layout_name: string;
+  grid_rows: number;
+  grid_cols: number;
+  layout_config: {
+    cells: LayoutCell[];
+  };
+}
+
 function getTextColor(bgColor: string | null): string {
   if (!bgColor) return '#000000';
   
@@ -25,40 +41,67 @@ function getTextColor(bgColor: string | null): string {
   return brightness > 128 ? '#000000' : '#FFFFFF';
 }
 
-// 日本時間の今日の日付を取得
 function getJapanDate(): string {
   const now = new Date();
-  // UTC時間に9時間（日本時間）を追加
   const japanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
   return japanTime.toISOString().split('T')[0];
 }
 
 export default function PublicPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [layout, setLayout] = useState<DisplayLayout | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const EMPLOYEES_PER_PAGE = 24; // 6×4 = 24人
-  const PAGE_INTERVAL = 5000; // 5秒ごとにページ切り替え
 
   useEffect(() => {
+    fetchActiveLayout();
     fetchPublicData();
-    // 30秒ごとにデータを再取得
+    
     const dataInterval = setInterval(fetchPublicData, 30000);
     return () => clearInterval(dataInterval);
   }, []);
 
   useEffect(() => {
-    // ページ数を計算
-    const totalPages = Math.ceil(employees.length / EMPLOYEES_PER_PAGE);
-    
-    if (totalPages <= 1) return; // 1ページ以下なら切り替え不要
+    if (!layout) return;
 
-    // ページ自動切り替え
+    // レイアウトに配置されているセルの数を計算
+    const cellsWithWorkplace = layout.layout_config.cells.filter(c => c.workplace_id !== null);
+    const totalCells = cellsWithWorkplace.length;
+    
+    if (totalCells === 0) return;
+
+    // 各セルに表示する従業員数を計算
+    const employeesPerPage = totalCells;
+    const totalPages = Math.ceil(employees.length / employeesPerPage);
+    
+    if (totalPages <= 1) return;
+
     const pageInterval = setInterval(() => {
       setCurrentPage((prev) => (prev + 1) % totalPages);
-    }, PAGE_INTERVAL);
+    }, 5000);
 
     return () => clearInterval(pageInterval);
-  }, [employees]);
+  }, [employees, layout]);
+
+  const fetchActiveLayout = async () => {
+    try {
+      const res = await fetch('/api/display-layouts?active=true');
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setLayout(data[0]);
+      } else {
+        // デフォルトレイアウト（6×2グリッド）
+        setLayout({
+          id: 0,
+          layout_name: 'デフォルト',
+          grid_rows: 6,
+          grid_cols: 2,
+          layout_config: { cells: [] }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching layout:', error);
+    }
+  };
 
   const fetchPublicData = async () => {
     const date = getJapanDate();
@@ -67,85 +110,104 @@ export default function PublicPage() {
     setEmployees(data);
   };
 
-  // 現在のページの従業員を取得
-  const startIndex = currentPage * EMPLOYEES_PER_PAGE;
-  const endIndex = startIndex + EMPLOYEES_PER_PAGE;
-  const displayEmployees = employees.slice(startIndex, endIndex);
-  
-  // 6×4のグリッドで表示
-  const rows = [];
-  for (let i = 0; i < EMPLOYEES_PER_PAGE; i += 6) {
-    rows.push(displayEmployees.slice(i, i + 6));
+  if (!layout) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-2xl">読み込み中...</div>
+      </div>
+    );
   }
 
-  // ページ数を計算
-  const totalPages = Math.ceil(employees.length / EMPLOYEES_PER_PAGE);
+  // レイアウトに基づいて従業員を配置
+  const cellsWithWorkplace = layout.layout_config.cells.filter(c => c.workplace_id !== null);
+  const employeesPerPage = cellsWithWorkplace.length || (layout.grid_rows * layout.grid_cols);
+  const totalPages = Math.ceil(employees.length / employeesPerPage);
+  
+  const startIndex = currentPage * employeesPerPage;
+  const endIndex = startIndex + employeesPerPage;
+  const displayEmployees = employees.slice(startIndex, endIndex);
+
+  // 各セルに表示する従業員を割り当て
+  const getCellEmployees = (workplace_id: number) => {
+    return displayEmployees.filter(emp => emp.workplace_id === workplace_id);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-900 p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-4xl font-bold">配置一覧</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-4xl font-bold text-white">配置一覧</h1>
           {totalPages > 1 && (
-            <div className="text-2xl font-semibold text-gray-700">
+            <div className="text-2xl font-semibold text-white">
               {currentPage + 1} / {totalPages}
             </div>
           )}
         </div>
 
-        {/* 6×4グリッド */}
-        <div className="space-y-2">
-          {rows.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-6 gap-2">
-              {row.map((employee) => {
-                const bgColor = employee.attendance_status === '休み'
-                  ? '#000000'
-                  : employee.workplace_color || '#9CA3AF';
-                
-                const textColor = getTextColor(bgColor);
-
+        {/* レイアウトグリッド表示 */}
+        <div 
+          className="grid gap-3"
+          style={{ 
+            gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
+            gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
+          }}
+        >
+          {Array.from({ length: layout.grid_rows }).map((_, row) =>
+            Array.from({ length: layout.grid_cols }).map((_, col) => {
+              const cell = layout.layout_config.cells.find(c => c.row === row && c.col === col);
+              
+              if (!cell || !cell.workplace_id) {
                 return (
                   <div
-                    key={employee.employee_id}
-                    className="rounded-lg shadow-lg p-2 flex flex-col items-center justify-center"
+                    key={`${row}-${col}`}
+                    className="rounded-lg bg-gray-800"
+                    style={{ minHeight: '120px' }}
+                  />
+                );
+              }
+
+              const cellEmployees = getCellEmployees(cell.workplace_id);
+              
+              return (
+                <div
+                  key={`${row}-${col}`}
+                  className="rounded-lg shadow-lg p-3 overflow-hidden"
+                  style={{ 
+                    backgroundColor: cellEmployees[0]?.workplace_color || '#4B5563',
+                    minHeight: '120px'
+                  }}
+                >
+                  {/* 作業場名 */}
+                  <div 
+                    className="text-center font-bold text-lg mb-2 pb-2 border-b-2"
                     style={{ 
-                      backgroundColor: bgColor,
-                      aspectRatio: '1 / 0.6'
+                      color: getTextColor(cellEmployees[0]?.workplace_color || null),
+                      borderColor: getTextColor(cellEmployees[0]?.workplace_color || null)
                     }}
                   >
-                    {/* 名前ボックス（白いボックス） */}
-                    <div className="bg-white px-4 py-2 rounded-md shadow-md mb-1">
-                      <div className="text-xl font-bold text-gray-800 whitespace-nowrap">
-                        {employee.name}
-                      </div>
-                    </div>
-                    
-                    {/* 配置場所（大きく表示） */}
-                    <div 
-                      className="text-base font-bold text-center"
-                      style={{ color: textColor }}
-                    >
-                      {employee.attendance_status === '休み'
-                        ? '休み'
-                        : employee.workplace_name || '未配置'}
-                    </div>
+                    {cellEmployees[0]?.workplace_name || '未配置'}
                   </div>
-                );
-              })}
-              {/* 空のセルを埋める */}
-              {row.length < 6 &&
-                Array.from({ length: 6 - row.length }).map((_, i) => (
-                  <div
-                    key={`empty-${rowIndex}-${i}`}
-                    className="rounded-lg bg-gray-200"
-                    style={{ aspectRatio: '1 / 0.6' }}
-                  />
-                ))}
-            </div>
-          ))}
+
+                  {/* 従業員リスト */}
+                  <div className="space-y-1">
+                    {cellEmployees.map((employee) => (
+                      <div
+                        key={employee.employee_id}
+                        className="bg-white px-3 py-2 rounded shadow-sm"
+                      >
+                        <div className="text-base font-bold text-gray-800 text-center">
+                          {employee.name}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
-        {/* ページインジケーター（ドット） */}
+        {/* ページインジケーター */}
         {totalPages > 1 && (
           <div className="flex justify-center gap-2 mt-6">
             {Array.from({ length: totalPages }).map((_, index) => (
@@ -154,7 +216,7 @@ export default function PublicPage() {
                 className={`w-3 h-3 rounded-full transition-all ${
                   index === currentPage
                     ? 'bg-blue-500 w-8'
-                    : 'bg-gray-300'
+                    : 'bg-gray-500'
                 }`}
               />
             ))}

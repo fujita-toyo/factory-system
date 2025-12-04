@@ -23,6 +23,7 @@ export default function DashboardPage() {
     { name: '人員登録', path: '/employees', color: 'bg-green-500' },
     { name: '出勤登録', path: '/attendance', color: 'bg-yellow-500' },
     { name: '配置登録', path: '/assignment', color: 'bg-purple-500' },
+    { name: '表示レイアウト設定', path: '/display-layout', color: 'bg-indigo-500' }, 
   ];
 
   return (
