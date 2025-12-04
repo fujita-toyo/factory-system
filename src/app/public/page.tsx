@@ -126,11 +126,24 @@ export default function PublicPage() {
     return workplaces.find(w => w.id === workplace_id);
   };
 
-  // セルが描画の開始位置かチェック
-  const isCellStart = (row: number, col: number): boolean => {
-    return layout.layout_config.cells.some(cell => 
+  // 指定位置のセルを取得（このセルが開始位置の場合のみ）
+  const getCellAtStart = (row: number, col: number): LayoutCell | null => {
+    return layout.layout_config.cells.find(cell => 
       cell.row === row && cell.col === col
-    );
+    ) || null;
+  };
+
+  // 指定位置が他のセルに覆われているかチェック
+  const isCoveredByOtherCell = (row: number, col: number): boolean => {
+    return layout.layout_config.cells.some(cell => {
+      // 自分自身の開始位置は除外
+      if (cell.row === row && cell.col === col) {
+        return false;
+      }
+      // 他のセルの範囲内に含まれているかチェック
+      return row >= cell.row && row < cell.row + cell.rowspan &&
+             col >= cell.col && col < cell.col + cell.colspan;
+    });
   };
 
   return (
@@ -150,15 +163,13 @@ export default function PublicPage() {
         >
           {Array.from({ length: layout.grid_rows }).map((_, row) =>
             Array.from({ length: layout.grid_cols }).map((_, col) => {
-              // このセルが開始位置のセルを探す
-              const cell = layout.layout_config.cells.find(c => 
-                c.row === row && c.col === col
-              );
-              
-              // 開始位置でない場合はスキップ
-              if (!isCellStart(row, col)) {
+              // 他のセルに覆われている場合はスキップ
+              if (isCoveredByOtherCell(row, col)) {
                 return null;
               }
+
+              // このセルが開始位置のセルを取得
+              const cell = getCellAtStart(row, col);
 
               // セルが定義されていない場合は空セル
               if (!cell || !cell.workplace_id) {
