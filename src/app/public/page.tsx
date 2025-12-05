@@ -126,7 +126,7 @@ export default function PublicPage() {
     return workplaces.find(w => w.id === workplace_id);
   };
 
-  // 指定位置のセルを取得（このセルが開始位置の場合のみ）
+  // 指定位置のセルを取得(このセルが開始位置の場合のみ)
   const getCellAtStart = (row: number, col: number): LayoutCell | null => {
     return layout.layout_config.cells.find(cell => 
       cell.row === row && cell.col === col
@@ -147,15 +147,15 @@ export default function PublicPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="h-screen bg-gray-900 p-4 flex flex-col">
+      <div className="max-w-7xl mx-auto w-full flex flex-col flex-1">
         <div className="mb-4">
           <h1 className="text-4xl font-bold text-white text-center">作業配置表</h1>
         </div>
 
         {/* レイアウトグリッド表示 */}
         <div 
-          className="grid gap-2"
+          className="grid gap-2 flex-1"
           style={{ 
             gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
             gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
@@ -179,8 +179,7 @@ export default function PublicPage() {
                     className="rounded bg-gray-800"
                     style={{ 
                       gridRow: cell ? `span ${cell.rowspan}` : undefined,
-                      gridColumn: cell ? `span ${cell.colspan}` : undefined,
-                      minHeight: '80px'
+                      gridColumn: cell ? `span ${cell.colspan}` : undefined
                     }}
                   />
                 );
@@ -198,8 +197,7 @@ export default function PublicPage() {
                   style={{ 
                     gridRow: `span ${cell.rowspan}`,
                     gridColumn: `span ${cell.colspan}`,
-                    backgroundColor: bgColor,
-                    minHeight: '80px'
+                    backgroundColor: bgColor
                   }}
                 >
                   {/* 作業場名ヘッダー */}
