@@ -20,6 +20,7 @@ interface Workplace {
   number: number;
   name: string;
   color: string | null;
+  can_assign: boolean;  // ← 追加
 }
 
 interface LayoutCell {
@@ -238,7 +239,7 @@ export default function AssignmentPage() {
     }
   };
 
-  // ドロップ
+  /// ドロップ（修正版）
   const handleDrop = async (workplaceId: number) => {
     if (!draggedEmployee) return;
 
@@ -246,6 +247,14 @@ export default function AssignmentPage() {
     if (autoScrollIntervalRef.current) {
       clearInterval(autoScrollIntervalRef.current);
       autoScrollIntervalRef.current = null;
+    }
+
+    // 作業場の配置可否をチェック
+    const workplace = getWorkplace(workplaceId);
+    if (workplace && !workplace.can_assign) {
+      alert('この作業場には人員を配置できません');
+      setDraggedEmployee(null);
+      return;
     }
 
     if (draggedEmployee.workplace_id) {
@@ -401,28 +410,33 @@ export default function AssignmentPage() {
                   
                   return (
                     <div
-                      key={`${row}-${col}`}
-                      onDragOver={handleDragOver}
-                      onDrop={() => handleDrop(cell.workplace_id!)}
-                      className="rounded shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow"
-                      style={{ 
-                        gridRow: `span ${cell.rowspan}`,
-                        gridColumn: `span ${cell.colspan}`,
-                        backgroundColor: bgColor,
-                        minHeight: '100px'
-                      }}
-                    >
-                      {/* 作業場名ヘッダー（公開ページと同じ） */}
-                      <div 
-                        className="text-center font-bold py-2 px-2 border-b-4"
-                        style={{ 
-                          color: textColor,
-                          borderColor: textColor,
-                          fontSize: cell.rowspan > 2 ? '1.25rem' : '1rem'
-                        }}
-                      >
-                        {workplace?.name || '未配置'}
-                      </div>
+                    key={`${row}-${col}`}
+                    onDragOver={workplace?.can_assign ? handleDragOver : undefined}  // ← 修正
+                    onDrop={workplace?.can_assign ? () => handleDrop(cell.workplace_id!) : undefined}  // ← 修正
+                    className={`rounded shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow ${
+                      workplace?.can_assign ? '' : 'opacity-50'  // ← 追加（配置不可は半透明に）
+                    }`}
+                    style={{ 
+                      gridRow: `span ${cell.rowspan}`,
+                      gridColumn: `span ${cell.colspan}`,
+                      backgroundColor: bgColor,
+                      minHeight: '100px'
+                    }}
+                  >
+                    {/* 作業場名ヘッダー */}
+                  <div 
+                    className="text-center font-bold py-2 px-2 border-b-4"
+                    style={{ 
+                      color: textColor,
+                      borderColor: textColor,
+                      fontSize: cell.rowspan > 2 ? '1.25rem' : '1rem'
+                    }}
+                  >
+                    {workplace?.name || '未配置'}
+                    {workplace && !workplace.can_assign && (  // ← 追加（配置不可マーク）
+                      <span className="text-xs block mt-1">（配置不可）</span>
+                    )}
+                  </div>
 
                       {/* 従業員リスト（公開ページと同じ + 削除ボタン） */}
                       <div className="flex-1 p-2 space-y-2 overflow-y-auto">

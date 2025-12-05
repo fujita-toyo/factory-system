@@ -43,19 +43,32 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { employee_id, workplace_id, date } = await request.json();
+
+    // 作業場の配置可否をチェック
+    const workplaceCheck = await pool.query(
+      'SELECT can_assign FROM workplaces WHERE id = $1',
+      [workplace_id]
+    );
     
-    const result = await pool.query(`
-      INSERT INTO assignments (employee_id, workplace_id, date)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (employee_id, date)
-      DO UPDATE SET workplace_id = $2
-      RETURNING *
-    `, [employee_id, workplace_id, date]);
+    if (workplaceCheck.rows.length === 0) {
+      return NextResponse.json({ error: '作業場が見つかりません' }, { status: 404 });
+    }
+    
+    if (!workplaceCheck.rows[0].can_assign) {
+      return NextResponse.json({ error: 'この作業場には配置できません' }, { status: 400 });
+    }
+    
+    // 既存の配置を削除してから新規配置
+    await pool.query('DELETE FROM assignments WHERE employee_id = $1 AND date = $2', [employee_id, date]);
+    
+    const result = await pool.query(
+      'INSERT INTO assignments (employee_id, workplace_id, date) VALUES ($1, $2, $3) RETURNING *',
+      [employee_id, workplace_id, date]
+    );
 
     return NextResponse.json(result.rows[0]);
   } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json({ error: '登録エラー' }, { status: 500 });
+    return NextResponse.json({ error: '配置登録エラー' }, { status: 500 });
   }
 }
 
