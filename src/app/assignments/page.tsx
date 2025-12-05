@@ -126,42 +126,13 @@ export default function AssignmentPage() {
     );
   };
 
-  const getAssignedEmployees = (workplaceId: number) => {
-    return employees.filter((e) => e.workplace_id === workplaceId);
+  // 公開ページと同じロジック
+  const getWorkplaceEmployees = (workplace_id: number) => {
+    return employees.filter(emp => emp.workplace_id === workplace_id);
   };
 
   const getWorkplace = (workplace_id: number) => {
     return workplaces.find(w => w.id === workplace_id);
-  };
-
-  // ドラッグ開始
-  const handleDragStart = (employee: Employee) => {
-    setDraggedEmployee(employee);
-  };
-
-  // ドラッグオーバー
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  // ドロップ
-  const handleDrop = async (workplaceId: number) => {
-    if (!draggedEmployee) return;
-
-    // 既に配置されている場合は削除してから追加
-    if (draggedEmployee.workplace_id) {
-      await handleRemove(draggedEmployee.employee_id);
-    }
-    
-    await handleAssign(draggedEmployee.employee_id, workplaceId);
-    setDraggedEmployee(null);
-  };
-
-  // 未配置エリアにドロップ
-  const handleDropToUnassigned = async () => {
-    if (!draggedEmployee || !draggedEmployee.workplace_id) return;
-    await handleRemove(draggedEmployee.employee_id);
-    setDraggedEmployee(null);
   };
 
   const getCellAtStart = (row: number, col: number): LayoutCell | null => {
@@ -180,6 +151,35 @@ export default function AssignmentPage() {
       return row >= cell.row && row < cell.row + cell.rowspan &&
              col >= cell.col && col < cell.col + cell.colspan;
     });
+  };
+
+  // ドラッグ開始
+  const handleDragStart = (employee: Employee) => {
+    setDraggedEmployee(employee);
+  };
+
+  // ドラッグオーバー
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  // ドロップ
+  const handleDrop = async (workplaceId: number) => {
+    if (!draggedEmployee) return;
+
+    if (draggedEmployee.workplace_id) {
+      await handleRemove(draggedEmployee.employee_id);
+    }
+    
+    await handleAssign(draggedEmployee.employee_id, workplaceId);
+    setDraggedEmployee(null);
+  };
+
+  // 未配置エリアにドロップ
+  const handleDropToUnassigned = async () => {
+    if (!draggedEmployee || !draggedEmployee.workplace_id) return;
+    await handleRemove(draggedEmployee.employee_id);
+    setDraggedEmployee(null);
   };
 
   if (status === 'loading') {
@@ -206,11 +206,19 @@ export default function AssignmentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">配置登録</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-3xl font-bold">配置登録</h1>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+          >
+            戻る
+          </button>
+        </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+        <div className="bg-white p-4 rounded-lg shadow-md mb-4">
           <label className="block text-lg font-semibold mb-2">日付選択</label>
           <input
             type="date"
@@ -220,16 +228,16 @@ export default function AssignmentPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* 左側: 未配置の人員 */}
           <div 
-            className="bg-white p-6 rounded-lg shadow-md"
+            className="bg-white p-4 rounded-lg shadow-md"
             onDragOver={handleDragOver}
             onDrop={handleDropToUnassigned}
           >
             <h2 className="text-xl font-semibold mb-4">未配置の人員</h2>
 
-            <div className="mb-6">
+            <div className="mb-4">
               <h3 className="font-semibold mb-2 text-blue-600">早番</h3>
               <div className="space-y-2">
                 {getUnassignedEmployees('早番').map((employee) => (
@@ -237,10 +245,10 @@ export default function AssignmentPage() {
                     key={employee.employee_id}
                     draggable
                     onDragStart={() => handleDragStart(employee)}
-                    className="p-3 bg-blue-50 border border-blue-200 rounded-md cursor-move hover:bg-blue-100"
+                    className="p-2 bg-blue-50 border border-blue-200 rounded cursor-move hover:bg-blue-100"
                   >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
+                    <div className="font-semibold text-sm">{employee.name}</div>
+                    <div className="text-xs text-gray-600">{employee.employee_number}</div>
                   </div>
                 ))}
               </div>
@@ -254,17 +262,17 @@ export default function AssignmentPage() {
                     key={employee.employee_id}
                     draggable
                     onDragStart={() => handleDragStart(employee)}
-                    className="p-3 bg-purple-50 border border-purple-200 rounded-md cursor-move hover:bg-purple-100"
+                    className="p-2 bg-purple-50 border border-purple-200 rounded cursor-move hover:bg-purple-100"
                   >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
+                    <div className="font-semibold text-sm">{employee.name}</div>
+                    <div className="text-xs text-gray-600">{employee.employee_number}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* 右側: レイアウトグリッド */}
+          {/* 右側: 公開ページと同じレイアウト表示 */}
           <div className="lg:col-span-3">
             <div 
               className="grid gap-2"
@@ -275,82 +283,93 @@ export default function AssignmentPage() {
             >
               {Array.from({ length: layout.grid_rows }).map((_, row) =>
                 Array.from({ length: layout.grid_cols }).map((_, col) => {
+                  // 他のセルに覆われている場合はスキップ
                   if (isCoveredByOtherCell(row, col)) {
                     return null;
                   }
 
+                  // このセルが開始位置のセルを取得
                   const cell = getCellAtStart(row, col);
 
+                  // セルが定義されていない場合は空セル
                   if (!cell || !cell.workplace_id) {
                     return (
                       <div
                         key={`${row}-${col}`}
-                        className="rounded bg-gray-200"
+                        className="rounded bg-gray-300"
                         style={{ 
                           gridRow: cell ? `span ${cell.rowspan}` : undefined,
                           gridColumn: cell ? `span ${cell.colspan}` : undefined,
-                          minHeight: '120px'
+                          minHeight: '100px'
                         }}
                       />
                     );
                   }
 
+                  const cellEmployees = getWorkplaceEmployees(cell.workplace_id);
                   const workplace = getWorkplace(cell.workplace_id);
-                  const assignedEmployees = getAssignedEmployees(cell.workplace_id);
-                  const bgColor = workplace?.color || '#ccc';
+                  const bgColor = workplace?.color || '#DC2626';
                   const textColor = getTextColor(bgColor);
-
+                  
                   return (
                     <div
                       key={`${row}-${col}`}
                       onDragOver={handleDragOver}
                       onDrop={() => handleDrop(cell.workplace_id!)}
-                      className="rounded-lg shadow-md overflow-hidden flex flex-col"
+                      className="rounded shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow"
                       style={{ 
                         gridRow: `span ${cell.rowspan}`,
                         gridColumn: `span ${cell.colspan}`,
                         backgroundColor: bgColor,
-                        minHeight: '120px'
+                        minHeight: '100px'
                       }}
                     >
-                      {/* 作業場名 */}
+                      {/* 作業場名ヘッダー（公開ページと同じ） */}
                       <div 
-                        className="text-center font-bold py-2 px-2 border-b-2"
+                        className="text-center font-bold py-2 px-2 border-b-4"
                         style={{ 
                           color: textColor,
-                          borderColor: textColor
+                          borderColor: textColor,
+                          fontSize: cell.rowspan > 2 ? '1.25rem' : '1rem'
                         }}
                       >
                         {workplace?.name || '未配置'}
                       </div>
 
-                      {/* 従業員リスト */}
-                      <div className="flex-1 p-2 space-y-1 overflow-y-auto">
-                        {assignedEmployees.map((employee) => (
-                          <div
-                            key={employee.employee_id}
-                            draggable
-                            onDragStart={() => handleDragStart(employee)}
-                            className="bg-white rounded px-3 py-2 shadow cursor-move hover:shadow-md"
-                          >
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <div className="font-semibold text-sm text-gray-800">
+                      {/* 従業員リスト（公開ページと同じ + 削除ボタン） */}
+                      <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                        {cellEmployees.length > 0 ? (
+                          cellEmployees.map((employee) => (
+                            <div
+                              key={employee.employee_id}
+                              draggable
+                              onDragStart={() => handleDragStart(employee)}
+                              className="bg-white rounded-full px-3 py-2 shadow-md cursor-move hover:shadow-lg transition-shadow"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm font-bold text-gray-800">
                                   {employee.name}
                                 </div>
-                                <div className="text-xs text-gray-600">
-                                  {employee.shift_type}
-                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemove(employee.employee_id);
+                                  }}
+                                  className="bg-red-500 text-white w-6 h-6 rounded-full text-xs hover:bg-red-600 flex items-center justify-center"
+                                >
+                                  ×
+                                </button>
                               </div>
-                              <button
-                                onClick={() => handleRemove(employee.employee_id)}
-                                className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
-                              >
-                                ×
-                              </button>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {employee.shift_type}
+                              </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className="text-center text-sm" style={{ color: textColor, opacity: 0.7 }}>
+                            ドラッグして配置
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   );
@@ -359,13 +378,6 @@ export default function AssignmentPage() {
             </div>
           </div>
         </div>
-
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mt-6 bg-gray-500 text-white px-6 py-3 rounded-md hover:bg-gray-600"
-        >
-          ダッシュボードに戻る
-        </button>
       </div>
     </div>
   );
