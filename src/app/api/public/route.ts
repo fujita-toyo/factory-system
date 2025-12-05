@@ -16,6 +16,7 @@ export async function GET(request: Request) {
         e.employee_number,
         e.name,
         COALESCE(a.attendance_status, '出勤') as attendance_status,
+        asn.workplace_id,
         w.name as workplace_name,
         w.color as workplace_color
       FROM employees e
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
       LEFT JOIN workplaces w ON asn.workplace_id = w.id
       WHERE e.employment_status = '在籍' 
         AND e.display_status = '表示'
+        AND COALESCE(a.attendance_status, '出勤') = '出勤'
       ORDER BY e.employee_number
     `, [date]);
 
