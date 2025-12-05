@@ -58,21 +58,7 @@ export default function AssignmentPage() {
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
   const [layout, setLayout] = useState<DisplayLayout | null>(null);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
-
-  // ← ここに追加
-  useEffect(() => {
-    if (!draggedEmployee) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      window.scrollBy(0, e.deltaY);
-    };
-
-    window.addEventListener('wheel', handleWheel, { passive: true });
-
-    return () => {
-      window.removeEventListener('wheel', handleWheel);
-    };
-  }, [draggedEmployee]);
+  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -90,6 +76,23 @@ export default function AssignmentPage() {
       fetchAssignments();
     }
   }, [date]);
+
+  // 自動スクロールのクリーンアップ
+  useEffect(() => {
+    if (!draggedEmployee && autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
+  }, [draggedEmployee, autoScrollInterval]);
+
+  // コンポーネントのアンマウント時にクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+      }
+    };
+  }, [autoScrollInterval]);
 
   const fetchWorkplaces = async () => {
     const res = await fetch('/api/workplaces');
@@ -127,10 +130,10 @@ export default function AssignmentPage() {
       // 配置情報をマージ
       const mergedData = attendingEmployees.map((emp: any) => {
         const assignment = assignmentData.find(
-          (a: any) => a.employee_id === emp.employee_id
+          (a: any) => a.employee_id === emp.id
         );
         return {
-          employee_id: emp.employee_id,
+          employee_id: emp.id,
           employee_number: emp.employee_number,
           name: emp.name,
           shift_type: emp.shift_type,
@@ -143,7 +146,7 @@ export default function AssignmentPage() {
       
       setEmployees(mergedData);
     } catch (error) {
-      console.error('Error fetching assignment:', error);
+      console.error('Error fetching assignments:', error);
     }
   };
 
@@ -205,14 +208,48 @@ export default function AssignmentPage() {
     setDraggedEmployee(employee);
   };
 
-  // ドラッグオーバー
+  // ドラッグオーバー（自動スクロール機能付き）
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    
+    // 自動スクロールの処理
+    const scrollZone = 100; // 上下100pxの範囲でスクロール開始
+    const scrollSpeed = 10; // スクロール速度
+    
+    const mouseY = e.clientY;
+    const windowHeight = window.innerHeight;
+    
+    // 既存のインターバルをクリア
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
+    
+    // 上端に近い場合は上にスクロール
+    if (mouseY < scrollZone) {
+      const interval = setInterval(() => {
+        window.scrollBy(0, -scrollSpeed);
+      }, 16);
+      setAutoScrollInterval(interval);
+    }
+    // 下端に近い場合は下にスクロール
+    else if (mouseY > windowHeight - scrollZone) {
+      const interval = setInterval(() => {
+        window.scrollBy(0, scrollSpeed);
+      }, 16);
+      setAutoScrollInterval(interval);
+    }
   };
 
   // ドロップ
   const handleDrop = async (workplaceId: number) => {
     if (!draggedEmployee) return;
+
+    // 自動スクロールを停止
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
 
     if (draggedEmployee.workplace_id) {
       await handleRemove(draggedEmployee.employee_id);
@@ -225,6 +262,13 @@ export default function AssignmentPage() {
   // 未配置エリアにドロップ
   const handleDropToUnassigned = async () => {
     if (!draggedEmployee || !draggedEmployee.workplace_id) return;
+    
+    // 自動スクロールを停止
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
+    
     await handleRemove(draggedEmployee.employee_id);
     setDraggedEmployee(null);
   };
