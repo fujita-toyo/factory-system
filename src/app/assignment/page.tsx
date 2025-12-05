@@ -59,6 +59,21 @@ export default function AssignmentPage() {
   const [layout, setLayout] = useState<DisplayLayout | null>(null);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
 
+  // ← ここに追加
+  useEffect(() => {
+    if (!draggedEmployee) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      window.scrollBy(0, e.deltaY);
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [draggedEmployee]);
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
