@@ -12,10 +12,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { number, name, color } = await request.json();
+    const { number, name, color, can_assign = true } = await request.json();
     const result = await pool.query(
-      'INSERT INTO workplaces (number, name, color) VALUES ($1, $2, $3) RETURNING *',
-      [number, name, color || null]
+      'INSERT INTO workplaces (number, name, color, can_assign) VALUES ($1, $2, $3, $4) RETURNING *',
+      [number, name, color || null, can_assign]
     );
     return NextResponse.json(result.rows[0]);
   } catch (error: any) {
@@ -28,10 +28,10 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { id, number, name, color } = await request.json();
+    const { id, number, name, color, can_assign } = await request.json();
     const result = await pool.query(
-      'UPDATE workplaces SET number = $1, name = $2, color = $3 WHERE id = $4 RETURNING *',
-      [number, name, color, id]
+      'UPDATE workplaces SET number = $1, name = $2, color = $3, can_assign = $4 WHERE id = $5 RETURNING *',
+      [number, name, color, can_assign, id]
     );
     return NextResponse.json(result.rows[0]);
   } catch (error) {

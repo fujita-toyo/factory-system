@@ -9,6 +9,7 @@ interface Workplace {
   number: number;
   name: string;
   color: string | null;
+  can_assign: boolean;
 }
 
 const PRESET_COLORS = [
@@ -51,6 +52,7 @@ export default function WorkplacesPage() {
   const [number, setNumber] = useState('');
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3B82F6');
+  const [canAssign, setCanAssign] = useState(true);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   
@@ -59,6 +61,7 @@ export default function WorkplacesPage() {
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editCanAssign, setEditCanAssign] = useState(true);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
   useEffect(() => {
@@ -86,13 +89,14 @@ export default function WorkplacesPage() {
     const res = await fetch('/api/workplaces', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number: parseInt(number), name, color }),
+      body: JSON.stringify({ number: parseInt(number), name, color, can_assign: canAssign }),
     });
 
     if (res.ok) {
       setNumber('');
       setName('');
       setColor('#3B82F6');
+      setCanAssign(true);
       fetchWorkplaces();
     } else {
       const data = await res.json();
@@ -105,6 +109,7 @@ export default function WorkplacesPage() {
     setEditNumber(workplace.number.toString());
     setEditName(workplace.name);
     setEditColor(workplace.color || '#3B82F6');
+    setEditCanAssign(workplace.can_assign);
   };
 
   const handleUpdate = async () => {
@@ -121,6 +126,7 @@ export default function WorkplacesPage() {
         number: parseInt(editNumber),
         name: editName,
         color: editColor,
+        can_assign: editCanAssign,
       }),
     });
 
@@ -167,14 +173,13 @@ export default function WorkplacesPage() {
           await fetch('/api/workplaces', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number: parseInt(number), name, color: null }),
+            body: JSON.stringify({ number: parseInt(number), name, color: null, can_assign: true }),
           });
         }
       }
 
       fetchWorkplaces();
       setCsvFile(null);
-      // ファイル選択をリセット
       const fileInput = document.getElementById('csv-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     };
@@ -193,7 +198,7 @@ export default function WorkplacesPage() {
         {/* 新規登録フォーム */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-4">新規登録</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <input
               type="number"
               placeholder="番号"
@@ -245,9 +250,24 @@ export default function WorkplacesPage() {
               )}
             </div>
           </div>
+          
+          {/* 配置可否チェックボックス */}
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="can-assign"
+              checked={canAssign}
+              onChange={(e) => setCanAssign(e.target.checked)}
+              className="w-5 h-5 mr-2"
+            />
+            <label htmlFor="can-assign" className="text-sm font-medium">
+              人員配置を許可する
+            </label>
+          </div>
+
           <button
             onClick={handleAdd}
-            className="mt-4 bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
+            className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
           >
             追加
           </button>
@@ -281,7 +301,7 @@ export default function WorkplacesPage() {
               選択中: {csvFile.name}
             </p>
           )}
-          <p className="text-sm text-gray-600 mt-2">形式: 番号,作業場名称</p>
+          <p className="text-sm text-gray-600 mt-2">形式: 番号,作業場名称（配置許可はデフォルトでON）</p>
         </div>
 
         {/* 作業場一覧 */}
@@ -345,12 +365,31 @@ export default function WorkplacesPage() {
                         </>
                       )}
                     </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`edit-can-assign-${workplace.id}`}
+                        checked={editCanAssign}
+                        onChange={(e) => setEditCanAssign(e.target.checked)}
+                        className="w-4 h-4 mr-1"
+                      />
+                      <label htmlFor={`edit-can-assign-${workplace.id}`} className="text-xs">
+                        配置許可
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   // 通常表示
                   <div className="flex items-center gap-4">
                     <span className="font-semibold w-12">{workplace.number}</span>
                     <span>{workplace.name}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      workplace.can_assign 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {workplace.can_assign ? '配置可' : '配置不可'}
+                    </span>
                   </div>
                 )}
                 <div className="flex gap-2">
