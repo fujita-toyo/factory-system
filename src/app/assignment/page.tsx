@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
@@ -58,7 +58,7 @@ export default function AssignmentPage() {
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
   const [layout, setLayout] = useState<DisplayLayout | null>(null);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
-  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null);
+  const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -77,22 +77,16 @@ export default function AssignmentPage() {
     }
   }, [date]);
 
-  // 自動スクロールのクリーンアップ
-  useEffect(() => {
-    if (!draggedEmployee && autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
-    }
-  }, [draggedEmployee, autoScrollInterval]);
-
-  // コンポーネントのアンマウント時にクリーンアップ
+  // 代わりにこれを追加
   useEffect(() => {
     return () => {
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+        autoScrollIntervalRef.current = null;
       }
     };
-  }, [autoScrollInterval]);
+  }, []);
+
 
   const fetchWorkplaces = async () => {
     const res = await fetch('/api/workplaces');
@@ -211,33 +205,36 @@ export default function AssignmentPage() {
   // ドラッグオーバー（自動スクロール機能付き）
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    
+  
     // 自動スクロールの処理
     const scrollZone = 100; // 上下100pxの範囲でスクロール開始
     const scrollSpeed = 10; // スクロール速度
-    
+  
     const mouseY = e.clientY;
     const windowHeight = window.innerHeight;
-    
-    // 既存のインターバルをクリア
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
-    }
-    
+  
     // 上端に近い場合は上にスクロール
     if (mouseY < scrollZone) {
-      const interval = setInterval(() => {
-        window.scrollBy(0, -scrollSpeed);
-      }, 16);
-      setAutoScrollInterval(interval);
+      if (!autoScrollIntervalRef.current) {
+        autoScrollIntervalRef.current = setInterval(() => {
+          window.scrollBy(0, -scrollSpeed);
+        }, 16);
+      }
     }
     // 下端に近い場合は下にスクロール
     else if (mouseY > windowHeight - scrollZone) {
-      const interval = setInterval(() => {
-        window.scrollBy(0, scrollSpeed);
-      }, 16);
-      setAutoScrollInterval(interval);
+      if (!autoScrollIntervalRef.current) {
+        autoScrollIntervalRef.current = setInterval(() => {
+          window.scrollBy(0, scrollSpeed);
+        }, 16);
+      }
+    }
+    // 中央エリアの場合はスクロールを停止
+    else {
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+        autoScrollIntervalRef.current = null;
+      }
     }
   };
 
@@ -246,15 +243,15 @@ export default function AssignmentPage() {
     if (!draggedEmployee) return;
 
     // 自動スクロールを停止
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
     }
 
     if (draggedEmployee.workplace_id) {
       await handleRemove(draggedEmployee.employee_id);
     }
-    
+  
     await handleAssign(draggedEmployee.employee_id, workplaceId);
     setDraggedEmployee(null);
   };
@@ -264,11 +261,11 @@ export default function AssignmentPage() {
     if (!draggedEmployee || !draggedEmployee.workplace_id) return;
     
     // 自動スクロールを停止
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
     }
-    
+  
     await handleRemove(draggedEmployee.employee_id);
     setDraggedEmployee(null);
   };
