@@ -101,7 +101,7 @@ export default function AssignmentPage() {
       const attendanceData = await attendanceRes.json();
       
       // 配置データを取得
-      const assignmentRes = await fetch(`/api/assignments?date=${date}`);
+      const assignmentRes = await fetch(`/api/assignment?date=${date}`);
       const assignmentData = await assignmentRes.json();
       
       // 出勤している従業員のみをフィルタ
@@ -128,12 +128,12 @@ export default function AssignmentPage() {
       
       setEmployees(mergedData);
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error('Error fetching assignment:', error);
     }
   };
 
   const handleAssign = async (employeeId: number, workplaceId: number) => {
-    await fetch('/api/assignments', {
+    await fetch('/api/assignment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -146,7 +146,7 @@ export default function AssignmentPage() {
   };
 
   const handleRemove = async (employeeId: number) => {
-    await fetch(`/api/assignments?employee_id=${employeeId}&date=${date}`, {
+    await fetch(`/api/assignment?employee_id=${employeeId}&date=${date}`, {
       method: 'DELETE',
     });
     fetchAssignments();
