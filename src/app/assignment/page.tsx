@@ -95,9 +95,41 @@ export default function AssignmentPage() {
   };
 
   const fetchAssignments = async () => {
-    const res = await fetch(`/api/assignments?date=${date}`);
-    const data = await res.json();
-    setEmployees(data);
+    try {
+      // 出勤データを取得（未配置含む全員）
+      const attendanceRes = await fetch(`/api/attendance?date=${date}`);
+      const attendanceData = await attendanceRes.json();
+      
+      // 配置データを取得
+      const assignmentRes = await fetch(`/api/assignments?date=${date}`);
+      const assignmentData = await assignmentRes.json();
+      
+      // 出勤している従業員のみをフィルタ
+      const attendingEmployees = attendanceData.filter(
+        (emp: any) => emp.attendance_status === '出勤'
+      );
+      
+      // 配置情報をマージ
+      const mergedData = attendingEmployees.map((emp: any) => {
+        const assignment = assignmentData.find(
+          (a: any) => a.employee_id === emp.employee_id
+        );
+        return {
+          employee_id: emp.employee_id,
+          employee_number: emp.employee_number,
+          name: emp.name,
+          shift_type: emp.shift_type,
+          workplace_id: assignment?.workplace_id || null,
+          workplace_name: assignment?.workplace_name || null,
+          workplace_number: assignment?.workplace_number || null,
+          workplace_color: assignment?.workplace_color || null,
+        };
+      });
+      
+      setEmployees(mergedData);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+    }
   };
 
   const handleAssign = async (employeeId: number, workplaceId: number) => {
