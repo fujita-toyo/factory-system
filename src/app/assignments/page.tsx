@@ -22,14 +22,42 @@ interface Workplace {
   color: string | null;
 }
 
+interface LayoutCell {
+  row: number;
+  col: number;
+  rowspan: number;
+  colspan: number;
+  workplace_id: number | null;
+}
+
+interface DisplayLayout {
+  id: number;
+  layout_name: string;
+  grid_rows: number;
+  grid_cols: number;
+  layout_config: {
+    cells: LayoutCell[];
+  };
+}
+
+function getTextColor(bgColor: string | null): string {
+  if (!bgColor) return '#000000';
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128 ? '#000000' : '#FFFFFF';
+}
+
 export default function AssignmentPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
-  const [selectedWorkplace, setSelectedWorkplace] = useState<number | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  const [layout, setLayout] = useState<DisplayLayout | null>(null);
+  const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -39,6 +67,7 @@ export default function AssignmentPage() {
 
   useEffect(() => {
     fetchWorkplaces();
+    fetchActiveLayout();
   }, []);
 
   useEffect(() => {
@@ -51,6 +80,18 @@ export default function AssignmentPage() {
     const res = await fetch('/api/workplaces');
     const data = await res.json();
     setWorkplaces(data);
+  };
+
+  const fetchActiveLayout = async () => {
+    try {
+      const res = await fetch('/api/display-layouts?active=true');
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setLayout(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching layout:', error);
+    }
   };
 
   const fetchAssignments = async () => {
@@ -70,7 +111,6 @@ export default function AssignmentPage() {
       }),
     });
     fetchAssignments();
-    setShowModal(false);
   };
 
   const handleRemove = async (employeeId: number) => {
@@ -90,13 +130,79 @@ export default function AssignmentPage() {
     return employees.filter((e) => e.workplace_id === workplaceId);
   };
 
-  const openModal = (workplaceId: number) => {
-    setSelectedWorkplace(workplaceId);
-    setShowModal(true);
+  const getWorkplace = (workplace_id: number) => {
+    return workplaces.find(w => w.id === workplace_id);
+  };
+
+  // ドラッグ開始
+  const handleDragStart = (employee: Employee) => {
+    setDraggedEmployee(employee);
+  };
+
+  // ドラッグオーバー
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  // ドロップ
+  const handleDrop = async (workplaceId: number) => {
+    if (!draggedEmployee) return;
+
+    // 既に配置されている場合は削除してから追加
+    if (draggedEmployee.workplace_id) {
+      await handleRemove(draggedEmployee.employee_id);
+    }
+    
+    await handleAssign(draggedEmployee.employee_id, workplaceId);
+    setDraggedEmployee(null);
+  };
+
+  // 未配置エリアにドロップ
+  const handleDropToUnassigned = async () => {
+    if (!draggedEmployee || !draggedEmployee.workplace_id) return;
+    await handleRemove(draggedEmployee.employee_id);
+    setDraggedEmployee(null);
+  };
+
+  const getCellAtStart = (row: number, col: number): LayoutCell | null => {
+    if (!layout) return null;
+    return layout.layout_config.cells.find(cell => 
+      cell.row === row && cell.col === col
+    ) || null;
+  };
+
+  const isCoveredByOtherCell = (row: number, col: number): boolean => {
+    if (!layout) return false;
+    return layout.layout_config.cells.some(cell => {
+      if (cell.row === row && cell.col === col) {
+        return false;
+      }
+      return row >= cell.row && row < cell.row + cell.rowspan &&
+             col >= cell.col && col < cell.col + cell.colspan;
+    });
   };
 
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
+  }
+
+  if (!layout) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">配置登録</h1>
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded">
+            有効なレイアウトが設定されていません。先に「表示レイアウト設定」でレイアウトを作成し、有効化してください。
+          </div>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mt-6 bg-gray-500 text-white px-6 py-3 rounded-md hover:bg-gray-600"
+          >
+            ダッシュボードに戻る
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -114,8 +220,13 @@ export default function AssignmentPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* 左側: 未配置の人員 */}
+          <div 
+            className="bg-white p-6 rounded-lg shadow-md"
+            onDragOver={handleDragOver}
+            onDrop={handleDropToUnassigned}
+          >
             <h2 className="text-xl font-semibold mb-4">未配置の人員</h2>
 
             <div className="mb-6">
@@ -124,7 +235,9 @@ export default function AssignmentPage() {
                 {getUnassignedEmployees('早番').map((employee) => (
                   <div
                     key={employee.employee_id}
-                    className="p-3 bg-blue-50 border border-blue-200 rounded-md"
+                    draggable
+                    onDragStart={() => handleDragStart(employee)}
+                    className="p-3 bg-blue-50 border border-blue-200 rounded-md cursor-move hover:bg-blue-100"
                   >
                     <div className="font-semibold">{employee.employee_number}</div>
                     <div>{employee.name}</div>
@@ -139,7 +252,9 @@ export default function AssignmentPage() {
                 {getUnassignedEmployees('遅番').map((employee) => (
                   <div
                     key={employee.employee_id}
-                    className="p-3 bg-purple-50 border border-purple-200 rounded-md"
+                    draggable
+                    onDragStart={() => handleDragStart(employee)}
+                    className="p-3 bg-purple-50 border border-purple-200 rounded-md cursor-move hover:bg-purple-100"
                   >
                     <div className="font-semibold">{employee.employee_number}</div>
                     <div>{employee.name}</div>
@@ -149,52 +264,99 @@ export default function AssignmentPage() {
             </div>
           </div>
 
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {workplaces.map((workplace) => (
-              <div
-                key={workplace.id}
-                className="bg-white rounded-lg shadow-md p-4"
-                style={{
-                  borderTop: `4px solid ${workplace.color || '#ccc'}`,
-                }}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-lg">
-                    {workplace.number}. {workplace.name}
-                  </h3>
-                  <button
-                    onClick={() => openModal(workplace.id)}
-                    className="bg-green-500 text-white w-8 h-8 rounded-full hover:bg-green-600"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {getAssignedEmployees(workplace.id).map((employee) => (
+          {/* 右側: レイアウトグリッド */}
+          <div className="lg:col-span-3">
+            <div 
+              className="grid gap-2"
+              style={{ 
+                gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
+                gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
+              }}
+            >
+              {Array.from({ length: layout.grid_rows }).map((_, row) =>
+                Array.from({ length: layout.grid_cols }).map((_, col) => {
+                  if (isCoveredByOtherCell(row, col)) {
+                    return null;
+                  }
+
+                  const cell = getCellAtStart(row, col);
+
+                  if (!cell || !cell.workplace_id) {
+                    return (
+                      <div
+                        key={`${row}-${col}`}
+                        className="rounded bg-gray-200"
+                        style={{ 
+                          gridRow: cell ? `span ${cell.rowspan}` : undefined,
+                          gridColumn: cell ? `span ${cell.colspan}` : undefined,
+                          minHeight: '120px'
+                        }}
+                      />
+                    );
+                  }
+
+                  const workplace = getWorkplace(cell.workplace_id);
+                  const assignedEmployees = getAssignedEmployees(cell.workplace_id);
+                  const bgColor = workplace?.color || '#ccc';
+                  const textColor = getTextColor(bgColor);
+
+                  return (
                     <div
-                      key={employee.employee_id}
-                      className="p-2 bg-gray-50 border rounded-md flex justify-between items-center"
+                      key={`${row}-${col}`}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(cell.workplace_id!)}
+                      className="rounded-lg shadow-md overflow-hidden flex flex-col"
+                      style={{ 
+                        gridRow: `span ${cell.rowspan}`,
+                        gridColumn: `span ${cell.colspan}`,
+                        backgroundColor: bgColor,
+                        minHeight: '120px'
+                      }}
                     >
-                      <div>
-                        <div className="font-semibold text-sm">
-                          {employee.employee_number}
-                        </div>
-                        <div className="text-sm">{employee.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {employee.shift_type}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemove(employee.employee_id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600"
+                      {/* 作業場名 */}
+                      <div 
+                        className="text-center font-bold py-2 px-2 border-b-2"
+                        style={{ 
+                          color: textColor,
+                          borderColor: textColor
+                        }}
                       >
-                        削除
-                      </button>
+                        {workplace?.name || '未配置'}
+                      </div>
+
+                      {/* 従業員リスト */}
+                      <div className="flex-1 p-2 space-y-1 overflow-y-auto">
+                        {assignedEmployees.map((employee) => (
+                          <div
+                            key={employee.employee_id}
+                            draggable
+                            onDragStart={() => handleDragStart(employee)}
+                            className="bg-white rounded px-3 py-2 shadow cursor-move hover:shadow-md"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="font-semibold text-sm text-gray-800">
+                                  {employee.name}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {employee.shift_type}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleRemove(employee.employee_id)}
+                                className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
@@ -205,49 +367,6 @@ export default function AssignmentPage() {
           ダッシュボードに戻る
         </button>
       </div>
-
-      {showModal && selectedWorkplace && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-96 overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">従業員を選択</h2>
-
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2 text-blue-600">早番</h3>
-              {getUnassignedEmployees('早番').map((employee) => (
-                <button
-                  key={employee.employee_id}
-                  onClick={() => handleAssign(employee.employee_id, selectedWorkplace)}
-                  className="w-full text-left p-3 mb-2 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
-                >
-                  <div className="font-semibold">{employee.employee_number}</div>
-                  <div>{employee.name}</div>
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2 text-purple-600">遅番</h3>
-              {getUnassignedEmployees('遅番').map((employee) => (
-                <button
-                  key={employee.employee_id}
-                  onClick={() => handleAssign(employee.employee_id, selectedWorkplace)}
-                  className="w-full text-left p-3 mb-2 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100"
-                >
-                  <div className="font-semibold">{employee.employee_number}</div>
-                  <div>{employee.name}</div>
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setShowModal(false)}
-              className="w-full bg-gray-500 text-white py-2 rounded-md hover:bg-gray-600"
-            >
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
