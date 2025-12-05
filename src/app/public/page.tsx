@@ -147,15 +147,15 @@ export default function PublicPage() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 p-2 flex flex-col overflow-hidden">
-      <div className="w-full h-full flex flex-col">
+    <div className="min-h-screen bg-gray-900 p-2">
+      <div className="w-full">
         <div className="mb-2">
           <h1 className="text-2xl font-bold text-white text-center">作業配置表</h1>
         </div>
 
         {/* レイアウトグリッド表示 */}
         <div 
-          className="grid gap-1 flex-1"
+          className="grid gap-1"
           style={{ 
             gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
             gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
@@ -179,7 +179,8 @@ export default function PublicPage() {
                     className="rounded bg-gray-800"
                     style={{ 
                       gridRow: cell ? `span ${cell.rowspan}` : undefined,
-                      gridColumn: cell ? `span ${cell.colspan}` : undefined
+                      gridColumn: cell ? `span ${cell.colspan}` : undefined,
+                      minHeight: '60px'
                     }}
                   />
                 );
@@ -197,7 +198,8 @@ export default function PublicPage() {
                   style={{ 
                     gridRow: `span ${cell.rowspan}`,
                     gridColumn: `span ${cell.colspan}`,
-                    backgroundColor: bgColor
+                    backgroundColor: bgColor,
+                    minHeight: '60px'
                   }}
                 >
                   {/* 作業場名ヘッダー */}
