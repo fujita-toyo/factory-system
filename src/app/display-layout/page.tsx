@@ -282,7 +282,7 @@ export default function DisplayLayoutPage() {
                   <input
                     type="number"
                     min="1"
-                    max="20"
+                    max="30"
                     value={currentLayout.grid_rows}
                     onChange={(e) => setCurrentLayout({ ...currentLayout, grid_rows: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border rounded"
