@@ -147,15 +147,15 @@ export default function PublicPage() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 p-4 flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex flex-col flex-1">
-        <div className="mb-4">
-          <h1 className="text-4xl font-bold text-white text-center">作業配置表</h1>
+    <div className="h-screen bg-gray-900 p-2 flex flex-col overflow-hidden">
+      <div className="w-full h-full flex flex-col">
+        <div className="mb-2">
+          <h1 className="text-2xl font-bold text-white text-center">作業配置表</h1>
         </div>
 
         {/* レイアウトグリッド表示 */}
         <div 
-          className="grid gap-2 flex-1"
+          className="grid gap-1 flex-1"
           style={{ 
             gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
             gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
@@ -202,31 +202,31 @@ export default function PublicPage() {
                 >
                   {/* 作業場名ヘッダー */}
                   <div 
-                    className="text-center font-bold py-3 px-2 border-b-4"
+                    className="text-center font-bold py-1 px-2 border-b-2"
                     style={{ 
                       color: textColor,
                       borderColor: textColor,
-                      fontSize: cell.rowspan > 2 ? '1.5rem' : '1.25rem'
+                      fontSize: cell.rowspan > 2 ? '1rem' : '0.875rem'
                     }}
                   >
                     {workplace?.name || '未配置'}
                   </div>
 
                   {/* 従業員リスト */}
-                  <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                  <div className="flex-1 p-1 space-y-1 overflow-y-auto">
                     {cellEmployees.length > 0 ? (
                       cellEmployees.map((employee) => (
                         <div
                           key={employee.employee_id}
-                          className="bg-white rounded-full px-4 py-2 shadow-md"
+                          className="bg-white rounded-full px-2 py-0.5 shadow-md"
                         >
-                          <div className="text-base font-bold text-gray-800 text-center">
+                          <div className="text-xs font-bold text-gray-800 text-center">
                             {employee.name}
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-sm" style={{ color: textColor, opacity: 0.7 }}>
+                      <div className="text-center text-xs" style={{ color: textColor, opacity: 0.7 }}>
                         配置なし
                       </div>
                     )}
