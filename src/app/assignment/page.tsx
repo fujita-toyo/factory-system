@@ -22,15 +22,41 @@ interface Workplace {
   color: string | null;
 }
 
+interface LayoutCell {
+  row: number;
+  col: number;
+  rowspan: number;
+  colspan: number;
+  workplace_id: number | null;
+}
+
+interface DisplayLayout {
+  id: number;
+  layout_name: string;
+  grid_rows: number;
+  grid_cols: number;
+  layout_config: {
+    cells: LayoutCell[];
+  };
+}
+
+function getTextColor(bgColor: string | null): string {
+  if (!bgColor) return '#000000';
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128 ? '#000000' : '#FFFFFF';
+}
+
 export default function AssignmentPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [workplaces, setWorkplaces] = useState<Workplace[]>([]);
-  const [selectedWorkplace, setSelectedWorkplace] = useState<number | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+  const [layout, setLayout] = useState<DisplayLayout | null>(null);
   const [draggedEmployee, setDraggedEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
@@ -41,6 +67,7 @@ export default function AssignmentPage() {
 
   useEffect(() => {
     fetchWorkplaces();
+    fetchActiveLayout();
   }, []);
 
   useEffect(() => {
@@ -53,6 +80,18 @@ export default function AssignmentPage() {
     const res = await fetch('/api/workplaces');
     const data = await res.json();
     setWorkplaces(data);
+  };
+
+  const fetchActiveLayout = async () => {
+    try {
+      const res = await fetch('/api/display-layouts?active=true');
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setLayout(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching layout:', error);
+    }
   };
 
   const fetchAssignments = async () => {
@@ -74,20 +113,6 @@ export default function AssignmentPage() {
     fetchAssignments();
   };
 
-  const handleMultipleAssign = async () => {
-    if (!selectedWorkplace || selectedEmployees.length === 0) {
-      alert('従業員を選択してください');
-      return;
-    }
-
-    for (const employeeId of selectedEmployees) {
-      await handleAssign(employeeId, selectedWorkplace);
-    }
-
-    setSelectedEmployees([]);
-    setShowModal(false);
-  };
-
   const handleRemove = async (employeeId: number) => {
     await fetch(`/api/assignments?employee_id=${employeeId}&date=${date}`, {
       method: 'DELETE',
@@ -101,52 +126,99 @@ export default function AssignmentPage() {
     );
   };
 
-  const getAssignedEmployees = (workplaceId: number) => {
-    return employees.filter((e) => e.workplace_id === workplaceId);
+  // 公開ページと同じロジック
+  const getWorkplaceEmployees = (workplace_id: number) => {
+    return employees.filter(emp => emp.workplace_id === workplace_id);
   };
 
-  const openModal = (workplaceId: number) => {
-    setSelectedWorkplace(workplaceId);
-    setSelectedEmployees([]);
-    setShowModal(true);
+  const getWorkplace = (workplace_id: number) => {
+    return workplaces.find(w => w.id === workplace_id);
   };
 
-  const toggleEmployeeSelection = (employeeId: number) => {
-    setSelectedEmployees(prev => {
-      if (prev.includes(employeeId)) {
-        return prev.filter(id => id !== employeeId);
-      } else {
-        return [...prev, employeeId];
+  const getCellAtStart = (row: number, col: number): LayoutCell | null => {
+    if (!layout) return null;
+    return layout.layout_config.cells.find(cell => 
+      cell.row === row && cell.col === col
+    ) || null;
+  };
+
+  const isCoveredByOtherCell = (row: number, col: number): boolean => {
+    if (!layout) return false;
+    return layout.layout_config.cells.some(cell => {
+      if (cell.row === row && cell.col === col) {
+        return false;
       }
+      return row >= cell.row && row < cell.row + cell.rowspan &&
+             col >= cell.col && col < cell.col + cell.colspan;
     });
   };
 
-  // ドラッグ&ドロップ処理
+  // ドラッグ開始
   const handleDragStart = (employee: Employee) => {
     setDraggedEmployee(employee);
   };
 
+  // ドラッグオーバー
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
+  // ドロップ
   const handleDrop = async (workplaceId: number) => {
-    if (draggedEmployee) {
-      await handleAssign(draggedEmployee.employee_id, workplaceId);
-      setDraggedEmployee(null);
+    if (!draggedEmployee) return;
+
+    if (draggedEmployee.workplace_id) {
+      await handleRemove(draggedEmployee.employee_id);
     }
+    
+    await handleAssign(draggedEmployee.employee_id, workplaceId);
+    setDraggedEmployee(null);
+  };
+
+  // 未配置エリアにドロップ
+  const handleDropToUnassigned = async () => {
+    if (!draggedEmployee || !draggedEmployee.workplace_id) return;
+    await handleRemove(draggedEmployee.employee_id);
+    setDraggedEmployee(null);
   };
 
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>;
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">配置登録</h1>
+  if (!layout) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">配置登録</h1>
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded">
+            有効なレイアウトが設定されていません。先に「表示レイアウト設定」でレイアウトを作成し、有効化してください。
+          </div>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mt-6 bg-gray-500 text-white px-6 py-3 rounded-md hover:bg-gray-600"
+          >
+            ダッシュボードに戻る
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-3xl font-bold">配置登録</h1>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+          >
+            戻る
+          </button>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow-md mb-4">
           <label className="block text-lg font-semibold mb-2">日付選択</label>
           <input
             type="date"
@@ -156,13 +228,16 @@ export default function AssignmentPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* 左側: 未配置の人員 */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
+          <div 
+            className="bg-white p-4 rounded-lg shadow-md"
+            onDragOver={handleDragOver}
+            onDrop={handleDropToUnassigned}
+          >
             <h2 className="text-xl font-semibold mb-4">未配置の人員</h2>
-            <p className="text-sm text-gray-600 mb-3">ドラッグして作業場に配置できます</p>
 
-            <div className="mb-6">
+            <div className="mb-4">
               <h3 className="font-semibold mb-2 text-blue-600">早番</h3>
               <div className="space-y-2">
                 {getUnassignedEmployees('早番').map((employee) => (
@@ -170,10 +245,10 @@ export default function AssignmentPage() {
                     key={employee.employee_id}
                     draggable
                     onDragStart={() => handleDragStart(employee)}
-                    className="p-3 bg-blue-50 border border-blue-200 rounded-md cursor-move hover:bg-blue-100 transition-colors"
+                    className="p-2 bg-blue-50 border border-blue-200 rounded cursor-move hover:bg-blue-100"
                   >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
+                    <div className="font-semibold text-sm">{employee.name}</div>
+                    <div className="text-xs text-gray-600">{employee.employee_number}</div>
                   </div>
                 ))}
               </div>
@@ -187,177 +262,123 @@ export default function AssignmentPage() {
                     key={employee.employee_id}
                     draggable
                     onDragStart={() => handleDragStart(employee)}
-                    className="p-3 bg-purple-50 border border-purple-200 rounded-md cursor-move hover:bg-purple-100 transition-colors"
+                    className="p-2 bg-purple-50 border border-purple-200 rounded cursor-move hover:bg-purple-100"
                   >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
+                    <div className="font-semibold text-sm">{employee.name}</div>
+                    <div className="text-xs text-gray-600">{employee.employee_number}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* 右側: 作業場 */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {workplaces.map((workplace) => (
-              <div
-                key={workplace.id}
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(workplace.id)}
-                className="bg-white rounded-lg shadow-md p-4 border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors"
-                style={{
-                  borderTopWidth: '6px',
-                  borderTopStyle: 'solid',
-                  borderTopColor: workplace.color || '#ccc',
-                }}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-lg">
-                    {workplace.number}. {workplace.name}
-                  </h3>
-                  <button
-                    onClick={() => openModal(workplace.id)}
-                    className="bg-green-500 text-white w-10 h-10 rounded-full hover:bg-green-600 text-xl font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="space-y-2 min-h-[100px]">
-                  {getAssignedEmployees(workplace.id).map((employee) => (
+          {/* 右側: 公開ページと同じレイアウト表示 */}
+          <div className="lg:col-span-3">
+            <div 
+              className="grid gap-2"
+              style={{ 
+                gridTemplateColumns: `repeat(${layout.grid_cols}, 1fr)`,
+                gridTemplateRows: `repeat(${layout.grid_rows}, 1fr)`
+              }}
+            >
+              {Array.from({ length: layout.grid_rows }).map((_, row) =>
+                Array.from({ length: layout.grid_cols }).map((_, col) => {
+                  // 他のセルに覆われている場合はスキップ
+                  if (isCoveredByOtherCell(row, col)) {
+                    return null;
+                  }
+
+                  // このセルが開始位置のセルを取得
+                  const cell = getCellAtStart(row, col);
+
+                  // セルが定義されていない場合は空セル
+                  if (!cell || !cell.workplace_id) {
+                    return (
+                      <div
+                        key={`${row}-${col}`}
+                        className="rounded bg-gray-300"
+                        style={{ 
+                          gridRow: cell ? `span ${cell.rowspan}` : undefined,
+                          gridColumn: cell ? `span ${cell.colspan}` : undefined,
+                          minHeight: '100px'
+                        }}
+                      />
+                    );
+                  }
+
+                  const cellEmployees = getWorkplaceEmployees(cell.workplace_id);
+                  const workplace = getWorkplace(cell.workplace_id);
+                  const bgColor = workplace?.color || '#DC2626';
+                  const textColor = getTextColor(bgColor);
+                  
+                  return (
                     <div
-                      key={employee.employee_id}
-                      className="p-2 bg-gray-50 border rounded-md flex justify-between items-center"
+                      key={`${row}-${col}`}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(cell.workplace_id!)}
+                      className="rounded shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow"
+                      style={{ 
+                        gridRow: `span ${cell.rowspan}`,
+                        gridColumn: `span ${cell.colspan}`,
+                        backgroundColor: bgColor,
+                        minHeight: '100px'
+                      }}
                     >
-                      <div>
-                        <div className="font-semibold text-sm">
-                          {employee.employee_number}
-                        </div>
-                        <div className="text-sm">{employee.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {employee.shift_type}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemove(employee.employee_id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600"
+                      {/* 作業場名ヘッダー（公開ページと同じ） */}
+                      <div 
+                        className="text-center font-bold py-2 px-2 border-b-4"
+                        style={{ 
+                          color: textColor,
+                          borderColor: textColor,
+                          fontSize: cell.rowspan > 2 ? '1.25rem' : '1rem'
+                        }}
                       >
-                        削除
-                      </button>
+                        {workplace?.name || '未配置'}
+                      </div>
+
+                      {/* 従業員リスト（公開ページと同じ + 削除ボタン） */}
+                      <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+                        {cellEmployees.length > 0 ? (
+                          cellEmployees.map((employee) => (
+                            <div
+                              key={employee.employee_id}
+                              draggable
+                              onDragStart={() => handleDragStart(employee)}
+                              className="bg-white rounded-full px-3 py-2 shadow-md cursor-move hover:shadow-lg transition-shadow"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm font-bold text-gray-800">
+                                  {employee.name}
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemove(employee.employee_id);
+                                  }}
+                                  className="bg-red-500 text-white w-6 h-6 rounded-full text-xs hover:bg-red-600 flex items-center justify-center"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {employee.shift_type}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center text-sm" style={{ color: textColor, opacity: 0.7 }}>
+                            ドラッグして配置
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                  {getAssignedEmployees(workplace.id).length === 0 && (
-                    <div className="text-gray-400 text-center py-8">
-                      ここにドロップ
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
-
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="mt-6 bg-gray-500 text-white px-6 py-3 rounded-md hover:bg-gray-600"
-        >
-          ダッシュボードに戻る
-        </button>
       </div>
-
-      {/* モーダル（複数選択） */}
-      {showModal && selectedWorkplace && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">従業員を選択（複数選択可）</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              配置する従業員をクリックして選択してください
-            </p>
-
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-blue-600 flex items-center justify-between">
-                <span>早番</span>
-                <span className="text-sm text-gray-500">
-                  {selectedEmployees.filter(id => 
-                    getUnassignedEmployees('早番').some(e => e.employee_id === id)
-                  ).length}人選択中
-                </span>
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {getUnassignedEmployees('早番').map((employee) => (
-                  <button
-                    key={employee.employee_id}
-                    onClick={() => toggleEmployeeSelection(employee.employee_id)}
-                    className={`text-left p-3 border-2 rounded-md transition-all ${
-                      selectedEmployees.includes(employee.employee_id)
-                        ? 'bg-blue-100 border-blue-500 shadow-md'
-                        : 'bg-blue-50 border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
-                    {selectedEmployees.includes(employee.employee_id) && (
-                      <div className="text-xs text-blue-600 font-semibold mt-1">✓ 選択中</div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-purple-600 flex items-center justify-between">
-                <span>遅番</span>
-                <span className="text-sm text-gray-500">
-                  {selectedEmployees.filter(id => 
-                    getUnassignedEmployees('遅番').some(e => e.employee_id === id)
-                  ).length}人選択中
-                </span>
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {getUnassignedEmployees('遅番').map((employee) => (
-                  <button
-                    key={employee.employee_id}
-                    onClick={() => toggleEmployeeSelection(employee.employee_id)}
-                    className={`text-left p-3 border-2 rounded-md transition-all ${
-                      selectedEmployees.includes(employee.employee_id)
-                        ? 'bg-purple-100 border-purple-500 shadow-md'
-                        : 'bg-purple-50 border-purple-200 hover:bg-purple-100'
-                    }`}
-                  >
-                    <div className="font-semibold">{employee.employee_number}</div>
-                    <div>{employee.name}</div>
-                    {selectedEmployees.includes(employee.employee_id) && (
-                      <div className="text-xs text-purple-600 font-semibold mt-1">✓ 選択中</div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleMultipleAssign}
-                disabled={selectedEmployees.length === 0}
-                className={`flex-1 py-3 rounded-md font-semibold ${
-                  selectedEmployees.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
-              >
-                配置する ({selectedEmployees.length}人)
-              </button>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setSelectedEmployees([]);
-                }}
-                className="flex-1 bg-gray-500 text-white py-3 rounded-md hover:bg-gray-600 font-semibold"
-              >
-                キャンセル
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
